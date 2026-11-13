@@ -17,6 +17,9 @@ app while you work on it. It does three jobs that no single existing tool covers
 3. **Admin:** backend actions that need a server key (log in as a test user, review reports, see failed
    pushes). The key stays in a git-ignored file on the Mac. The phone only ever gets one-time results.
 
+AI agents working on the app use the same console through a self-describing action list and a small
+command-line script, with an MCP adapter only when they have no shell (see [agent-access.md](agent-access.md)).
+
 **Core principle:** a recipe and a protocol, not a framework. Generate a few hundred lines of
 standard-library server code and a thin client that fit this project. Don't install a platform.
 
@@ -70,7 +73,11 @@ Work through these in order. Each step ends in something you can check.
 9. **Modules** the user asked for, one tab each (below).
 10. **Admin actions**, if asked for: key file, git-ignore, test accounts only, one-time tokens only. See
     [backend-admin.md](backend-admin.md).
-11. **Verify** with the checklist at the end of [guardrails.md](guardrails.md). If you can't run the server,
+11. **Agent access:** `GET /api/actions` built from the page's own buttons, a `dc` command-line script over
+    one shared client module, and a few lines in the project's `CLAUDE.md` / `AGENTS.md` pointing to it. Add
+    the MCP adapter only when agents have no shell or the user wants per-action approval. See
+    [agent-access.md](agent-access.md).
+12. **Verify** with the checklist at the end of [guardrails.md](guardrails.md). If you can't run the server,
     give the user the checks to run. When you can, run them: the control port doesn't answer from the LAN or
     through `adb reverse`, a release build has no debug strings in it, and `git check-ignore` passes on the
     key file. Show the user the results.
@@ -135,6 +142,9 @@ Put **every debug switch on the console**, not in the app's Settings. Settings i
 | The server key passed on a command line or logged | Read it from the file inside the server process. `ps` and the log show command lines |
 | "Log in as" offered for every user | Test accounts only, filtered by a marker the project defines |
 | Extra tabs nobody asked for (a deploy tab on a "jump to a screen" request) | Build the request plus the guardrails, and offer the rest in one line |
+| Agents left to `curl` the console by reading its source | Give them `GET /api/actions` and the `dc` script, and say so in `CLAUDE.md`. They guess action names and values otherwise, and rarely look at the snapshot |
+| A hand-written action list for agents | Build the catalogue from the page's buttons. A hand-kept list falls behind the first time someone adds a button |
+| A full MCP server beside the console | A thin MCP layer over the same client, only when it's needed. It never sees the server key, never sends sign-in tokens, and marks app-reported text as data |
 
 ## Worked example
 
