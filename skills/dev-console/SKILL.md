@@ -126,7 +126,7 @@ Put **every debug switch on the console**, not in the app's Settings. Settings i
 | Trusting loopback against the Mac's own browser | Also check `Host` and require `Content-Type: application/json` on POSTs. A web page in the Mac's browser can otherwise reach localhost (CSRF, DNS rebinding) |
 | Device names or screen names put into the page with `innerHTML` | Anything an app reports is untrusted (anything on the Wi-Fi can check in). Build the page with `textContent` / `createElement` |
 | Profile expiry estimated from the install date | Read the real `ExpirationDate` from the profile files. An estimate goes wrong the first time Xcode refreshes a profile on its own |
-| Baking the Mac's Wi-Fi IP into the phone build | Prefer `<LocalHostName>.local` (`scutil --get LocalHostName`). Show on the page which host each build has |
+| Baking the Mac's Wi-Fi IP into the phone build | The address changes (a router lease, another network) and the phone silently stops checking in. Write both, `<LocalHostName>.local,<IP>` (`scutil --get LocalHostName`), and let the client try them in order, moving on after a failure. Show on the page which host each build has |
 | A phone never checks in | iOS asks for Local Network permission on first contact and fails silently if denied. Add `NSLocalNetworkUsageDescription` (debug configs only) and `NSAllowsLocalNetworking`, and tell the user where to look in Settings |
 | Commands broadcast to every app | Every command names exactly one target |
 | The app's "pretend offline" switch also kills the debug connection | Give the client its own ephemeral URL session that the app's network layer doesn't touch |
@@ -149,3 +149,10 @@ This skill comes from a real console for a SwiftUI + Supabase app, about this si
   NotificationCenter names and one `showForDebug(screen)` entry in the app model.
 
 If the project you're in already has a console like this, extend it rather than starting a second one.
+
+**Retrofitting the guards onto an existing console** (the most common case: a console grown feature by
+feature, with one server that checks the client IP). Add, in this order: JSON-only POSTs and the `Host`
+check (no app change, nothing breaks, since the page already sends JSON), then the pair (server and client
+together, then rebuild the phones), then the `.local` host list. Run the checks in
+[guardrails.md](guardrails.md) against a second copy on another port before restarting the one the user's
+apps are checked in to. Splitting into two listeners can wait until something forwards into loopback.

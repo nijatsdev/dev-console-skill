@@ -28,6 +28,14 @@ port. When the Mac has no Wi-Fi peers to serve (emulator plus USB only), bind th
   writes into each debug build it makes, as a build setting into Info.plist or as a `BuildConfig` field. The
   server ignores polls without it. That stops another machine on the Wi-Fi from guessing an instance ID and
   receiving its commands, which can include one-time sign-in tokens.
+- **Builds made outside the console** (from Xcode, CI, or another agent building a simulator) carry no pair.
+  Either write the pair and host into a git-ignored `.xcconfig` (or `local.properties`) that every debug
+  build reads, so all builds have them, or exempt check-ins that arrive on loopback from the pair check.
+  Exempt loopback only when nothing forwards into it: on an iOS-only project with no `iproxy` or tunnel, a
+  loopback check-in is a simulator on this Mac. Never with `adb reverse`, which delivers every app on the
+  phone as loopback.
+- **Adding the pair to a console that already runs** stops every phone built before it from checking in until
+  it's rebuilt from the console. Tell the user to rebuild their phones.
 
 ## Endpoints
 
@@ -128,24 +136,29 @@ the page renders it with `textContent`, never `innerHTML`.
     }()
     private let id = ProcessInfo.processInfo.environment["SIMULATOR_UDID"]
         ?? UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-    private var host: String? {
+    // "name.local,192.168.x.y": the Bonjour name first (it survives a new Wi-Fi address), then the address for
+    // networks that block Bonjour. A failed poll moves on to the next one.
+    private static let hosts: [String] = {
         #if targetEnvironment(simulator)
-        "127.0.0.1"
+        ["127.0.0.1"]
         #else
-        (Bundle.main.object(forInfoDictionaryKey: "DevConsoleHost") as? String).flatMap { $0.isEmpty ? nil : $0 }
+        ((Bundle.main.object(forInfoDictionaryKey: "DevConsoleHost") as? String) ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         #endif
-    }
+    }()
+    private var hostIndex = 0
 
     func start(state: @escaping () -> [String: String], run: @escaping (Command) async -> Void) {
-        guard task == nil, let host else { return }
+        guard task == nil, !Self.hosts.isEmpty else { return }
         task = Task {
             var since = -1
             while !Task.isCancelled {
+                let host = Self.hosts[hostIndex % Self.hosts.count]
                 do {
                     let reply = try await poll(host: host, since: since, state: state())
                     since = reply.next
                     for c in reply.commands { await run(c) }
-                } catch { try? await Task.sleep(for: .seconds(3)) }
+                } catch { hostIndex += 1; try? await Task.sleep(for: .seconds(3)) }
             }
         }
     }
