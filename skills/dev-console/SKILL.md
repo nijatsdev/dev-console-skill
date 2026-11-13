@@ -51,9 +51,12 @@ Work through these in order. Each step ends in something you can check.
    makes that easy to miss. A common example is a model created as a property default that calls the
    backend SDK before the SDK is configured in `init`. Fix anything that would stop the app launching, and
    tell the user what you changed.
-3. **Decide the scope from the request.** Build what the user asked for, plus the guardrails, which are
-   never optional. Leave out the rest: if they asked for screen jumps, don't add a deploy tab or account
-   switching. Name the other modules in one closing line as things you can add later.
+3. **Decide the scope.** For a first console from an open request, ask once: one round of at most four
+   questions (what it should do, which devices, how it should look, backend admin), each with a recommended
+   answer read from the project. See [first-run.md](first-run.md). When the request already says what to
+   build, or a console exists, skip the questions and build what was asked. Either way, build that plus the
+   guardrails, which are never optional, and name the other modules in one closing line as things you can
+   add later.
 4. **Create `tools/dev-console/`** in the project with `server.py` (Python standard library only:
    `http.server.ThreadingHTTPServer`, `threading.Condition`, `subprocess`, `urllib`) and `index.html` (no
    build step, no framework). One command starts it: `python3 tools/dev-console/server.py`, with ports from
@@ -142,6 +145,8 @@ Put **every debug switch on the console**, not in the app's Settings. Settings i
 | The server key passed on a command line or logged | Read it from the file inside the server process. `ps` and the log show command lines |
 | "Log in as" offered for every user | Test accounts only, filtered by a marker the project defines |
 | Extra tabs nobody asked for (a deploy tab on a "jump to a screen" request) | Build the request plus the guardrails, and offer the rest in one line |
+| A long questionnaire before building, or questions about ports and the guardrails | One round, four questions at most, only on choices that differ between apps, with defaults from the project. Skip it when the request is specific |
+| A console that looks nothing like the app it sits beside | When the app has design tokens, offer "match the app" first and read the real values from the project |
 | Agents left to `curl` the console by reading its source | Give them `GET /api/actions` and the `dc` script, and say so in `CLAUDE.md`. They guess action names and values otherwise, and rarely look at the snapshot |
 | A hand-written action list for agents | Build the catalogue from the page's buttons. A hand-kept list falls behind the first time someone adds a button |
 | A full MCP server beside the console | A thin MCP layer over the same client, only when it's needed. It never sees the server key, never sends sign-in tokens, and marks app-reported text as data |
