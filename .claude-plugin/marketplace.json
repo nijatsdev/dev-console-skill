@@ -1,0 +1,14 @@
+{
+  "name": "dev-console-skill",
+  "description": "A single plugin: dev-console, an agent skill for building a local dev console for mobile apps.",
+  "owner": {
+    "name": "Nijat"
+  },
+  "plugins": [
+    {
+      "name": "dev-console",
+      "source": "./",
+      "description": "Build a local dev console for a mobile app: multi-device installs, a live debug remote, and admin actions with the key kept on your Mac."
+    }
+  ]
+}

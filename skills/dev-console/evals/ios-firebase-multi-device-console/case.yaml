@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: ios-firebase-multi-device-console
+expected_outcome: |
+  A small local server and web page (in the project, e.g. tools/) that lists paired iPhones and booted
+  simulators, builds once per device kind and installs and launches on every picked device in parallel,
+  explains failures in plain words, and copes with free-team signing. Debug builds check in to the page
+  over the LAN and receive commands (dark mode, jump to onboarding) for one picked app. Controls answer
+  only the Mac; debug client code is compiled out of release.
+context:
+  scaffold_script: place-files.sh

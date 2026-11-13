@@ -42,38 +42,54 @@ Work through these in order. Each step ends in something you can check.
 
 1. **Inventory the project.** Platform and build system (Xcode project or XcodeGen/Tuist, Gradle, Expo),
    build configurations, bundle IDs/application IDs (app and extensions), the backend and its admin API, and
-   any debug switches the app already has (often buried in Settings). Ask the user which modules they want
-   (see Modules below). Don't guess at the backend.
-2. **Create `tools/dev-console/`** in the project with `server.py` (Python standard library only:
+   any debug switches the app already has (often buried in Settings). Don't guess at the backend.
+2. **Read the app's launch path** (the `@main` app, `Application`/`MainActivity`, the root model) as if
+   you were going to run it. A console is no use if the debug build crashes at launch, and a focused task
+   makes that easy to miss. A common example is a model created as a property default that calls the
+   backend SDK before the SDK is configured in `init`. Fix anything that would stop the app launching, and
+   tell the user what you changed.
+3. **Decide the scope from the request.** Build what the user asked for, plus the guardrails, which are
+   never optional. Leave out the rest: if they asked for screen jumps, don't add a deploy tab or account
+   switching. Name the other modules in one closing line as things you can add later.
+4. **Create `tools/dev-console/`** in the project with `server.py` (Python standard library only:
    `http.server.ThreadingHTTPServer`, `threading.Condition`, `subprocess`, `urllib`) and `index.html` (no
-   build step, no framework). One command starts it: `python3 tools/dev-console/server.py`, port from an
-   env var. If the project uses `.claude/launch.json`, add an entry.
-3. **Add the guards before any feature:** the localhost-only check, Host check, JSON-only POSTs and a pairing
-   secret. See [guardrails.md](guardrails.md). Get this right first, while the server is still small.
-4. **Deploy tab:** list devices, build once per kind, install and launch in parallel, stream the log, map
-   failures to plain reasons, check signing and show a banner when a profile is about to run out. Commands
-   and failure strings are in [build-and-install.md](build-and-install.md).
-5. **Debug remote:** the poll endpoint and the in-app client, both from [protocol.md](protocol.md). Compile
+   build step, no framework). One command starts it: `python3 tools/dev-console/server.py`, with ports from
+   env vars. If the project uses `.claude/launch.json`, add an entry.
+5. **Add the guards before any feature.** These are two listeners, a Host check, JSON-only POSTs, a pairing
+   secret, and app-reported text shown as text, never as HTML. See [guardrails.md](guardrails.md). Get this
+   right first, while the server is still small.
+6. **Deploy tab, if asked for:** list devices, build once per kind, install and launch in parallel, stream
+   the log, map failures to plain reasons, check signing and show a banner when a profile is about to run
+   out. Commands and failure strings are in [build-and-install.md](build-and-install.md).
+7. **Debug remote:** the poll endpoint and the in-app client, both from [protocol.md](protocol.md). Compile
    the client out of release builds (`#if DEBUG` around the whole file, Android `src/debug/`, `__DEV__`).
    Start it from the app's root once the model exists.
-6. **"Live apps" picker:** a list of apps that checked in within the last ~40 s, showing device, kind, signed-in
-   user and current screen. Every control panel sits under it, and **nothing works until one app is picked**.
-   Remember the pick in `localStorage`.
-7. **Modules** the user asked for, one tab each (below).
-8. **Admin actions**, if wanted: key file, git-ignore, one-time tokens only. See
-   [backend-admin.md](backend-admin.md).
-9. **Verify** with the checklist at the end of [guardrails.md](guardrails.md). That means a real curl from
-   another address getting 403, a release build with no debug strings in it, and `git check-ignore` passing
-   on the key file. Show the user the results.
+8. **"Live apps" picker:** a list of apps that checked in within the last ~40 s, showing device, kind,
+   signed-in user and current screen. Every control panel sits under it, and **nothing works until one app is
+   picked**. Remember the pick in `localStorage`.
+9. **Modules** the user asked for, one tab each (below).
+10. **Admin actions**, if asked for: key file, git-ignore, test accounts only, one-time tokens only. See
+    [backend-admin.md](backend-admin.md).
+11. **Verify** with the checklist at the end of [guardrails.md](guardrails.md). If you can't run the server,
+    give the user the checks to run. When you can, run them: the control port doesn't answer from the LAN or
+    through `adb reverse`, a release build has no debug strings in it, and `git check-ignore` passes on the
+    key file. Show the user the results.
 
 ## The protocol in one screen
 
 ```
-App  →  GET /api/debug/poll?id=<instance>&since=<n>&pair=<secret>&screen=…&user=…   (LAN allowed)
-Page ←  holds the call open up to 25 s; answers at once when a command for <instance> arrives
-     →  {"next": 42, "commands": [{"id": 42, "action": "screen", "value": "paywall"}]}
-Page →  POST /api/debug/send {"target": "<instance>", "action": "...", "value": "..."}  (localhost only)
+Device listener 0.0.0.0:DEVICE_PORT (phones, simulators, adb reverse), only these two routes:
+App    →  GET /api/debug/poll?id=<instance>&since=<n>&pair=<secret>&screen=…&user=…
+Server ←  holds the call open up to 25 s; answers at once when a command for <instance> arrives
+       →  {"next": 42, "commands": [{"id": 42, "action": "screen", "value": "paywall"}]}
+App    →  POST /api/debug/snapshot?id=<instance>&pair=<secret>   (PNG body)
+
+Control listener 127.0.0.1:PORT (the page and every other route):
+Page   →  POST /api/debug/send {"target": "<instance>", "action": "...", "value": "..."}
 ```
+
+These are two separate servers in one process, sharing one command queue. A route that isn't on the device
+listener can't be reached from a phone, however the phone connects.
 
 `since=-1` on a fresh start returns no commands, so clicks made before launch never replay. If `since` is
 greater than the server's last ID, the server has restarted and the client starts over. The full spec,
@@ -106,8 +122,10 @@ Put **every debug switch on the console**, not in the app's Settings. Settings i
 
 | Mistake | Do this instead |
 |---|---|
-| Server bound to `0.0.0.0` with every route open | Bind `0.0.0.0` so phones can reach it, but only the poll and snapshot routes answer other addresses |
-| Trusting the client IP alone | Also check `Host` and require `Content-Type: application/json` on POSTs. A web page in the Mac's browser can otherwise reach localhost (CSRF, DNS rebinding) |
+| One server for the page and the phones, with "localhost only" checked by client IP | Two listeners. With `adb reverse`, an SSH tunnel or a local proxy, **every app on the phone arrives as 127.0.0.1**, so the client IP proves nothing. Only the device port is reversed or opened to the LAN, and it serves only poll and snapshot |
+| Trusting loopback against the Mac's own browser | Also check `Host` and require `Content-Type: application/json` on POSTs. A web page in the Mac's browser can otherwise reach localhost (CSRF, DNS rebinding) |
+| Device names or screen names put into the page with `innerHTML` | Anything an app reports is untrusted (anything on the Wi-Fi can check in). Build the page with `textContent` / `createElement` |
+| Profile expiry estimated from the install date | Read the real `ExpirationDate` from the profile files. An estimate goes wrong the first time Xcode refreshes a profile on its own |
 | Baking the Mac's Wi-Fi IP into the phone build | Prefer `<LocalHostName>.local` (`scutil --get LocalHostName`). Show on the page which host each build has |
 | A phone never checks in | iOS asks for Local Network permission on first contact and fails silently if denied. Add `NSLocalNetworkUsageDescription` (debug configs only) and `NSAllowsLocalNetworking`, and tell the user where to look in Settings |
 | Commands broadcast to every app | Every command names exactly one target |
@@ -116,6 +134,7 @@ Put **every debug switch on the console**, not in the app's Settings. Settings i
 | `-allowProvisioningUpdates` on every build | Without an Apple ID signed in to Xcode it fails the whole build. Try without it first, and retry with it only when the profile is missing |
 | The server key passed on a command line or logged | Read it from the file inside the server process. `ps` and the log show command lines |
 | "Log in as" offered for every user | Test accounts only, filtered by a marker the project defines |
+| Extra tabs nobody asked for (a deploy tab on a "jump to a screen" request) | Build the request plus the guardrails, and offer the rest in one line |
 
 ## Worked example
 

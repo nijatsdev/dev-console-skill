@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: ios-screen-jumper-snapshot
+expected_outcome: |
+  A Mac-side server and page plus a debug-only app client. The running debug build checks in over the
+  LAN and receives commands for one picked app: jump to any route through the app's Router, toggle
+  simulate-offline, and send back a screenshot that the page shows. Commands are not replayed on a fresh
+  launch, the client reconnects quietly, and the debug connection is not blocked by simulate-offline.
+context:
+  scaffold_script: place-files.sh

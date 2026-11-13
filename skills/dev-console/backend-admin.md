@@ -13,8 +13,9 @@ reports or failed pushes. They use a **server key**, which stays on the Mac.
   show command lines), and never print or log it, not even partly.
 - If the key is missing, endpoints answer `{"missing_key": true}` and the page explains where to put it. No
   stack traces.
-- Admin routes answer localhost only, behind the same guards as every other control (see
-  [guardrails.md](guardrails.md)).
+- Admin routes live on the control listener (`127.0.0.1`, never reversed or forwarded), behind the same
+  guards as every other control (see [guardrails.md](guardrails.md)). A route the phone can reach through
+  `adb reverse` is a route every app on the phone can reach.
 
 ## What goes to the phone
 
@@ -33,6 +34,9 @@ The app never sees the key and can't make further admin calls.
 - "Log in as" lists **test accounts only**. Pick a marker with the user (an email domain like
   `@example.test`, an `is_test` column, or an allowlist file next to the key) and filter on the server, not
   in the page.
+- Add a tripwire: if the filter matches more accounts than the user said they have (or more than ~50), the
+  server refuses to list any and says why. A pattern that catches too much usually means real users are
+  caught too.
 - If the backend holds real users, never list them, never sign in as them and never change them. If the
   sign-in method needs to change the account first (for example, giving a guest account a placeholder email
   so a magic link can be made), do it only to test accounts.

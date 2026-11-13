@@ -1,0 +1,10 @@
+{
+  "name": "dev-console",
+  "description": "Teaches an agent to build a local dev console for a mobile app: install on many phones and simulators at once, drive running debug builds over the LAN, and run backend admin actions with a key that stays on your Mac.",
+  "version": "1.0.0",
+  "author": { "name": "Nijat" },
+  "homepage": "https://github.com/nijatsdev/dev-console-skill",
+  "repository": "https://github.com/nijatsdev/dev-console-skill",
+  "license": "MIT",
+  "keywords": ["ios", "android", "xcode", "debug", "developer-tools", "mobile"]
+}

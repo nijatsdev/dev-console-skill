@@ -2,7 +2,22 @@
 
 One HTTP long poll. No websockets, Bonjour service or push needed. It works the same from a simulator
 (`127.0.0.1`), from a phone on the same Wi-Fi, and from an Android emulator (`10.0.2.2`) or a USB device
-(`adb reverse tcp:PORT tcp:PORT`, then `127.0.0.1`).
+(`adb reverse tcp:DEVICE_PORT tcp:DEVICE_PORT`, then `127.0.0.1`).
+
+## Two listeners
+
+The server process runs two `ThreadingHTTPServer`s, each in its own thread, sharing one `Remote` object:
+
+| Listener | Binds | Serves | Reached by |
+|---|---|---|---|
+| **control** | `127.0.0.1:PORT` | the page, `/api/debug/send`, `/api/debug/apps`, snapshots for the page, builds, admin | the Mac's browser only |
+| **device** | `0.0.0.0:DEVICE_PORT` (default `PORT+1`) | `/api/debug/poll` and `POST /api/debug/snapshot`, nothing else (404) | simulators, phones on the Wi-Fi, `adb reverse` |
+
+Why two: `adb reverse`, `iproxy` and SSH tunnels deliver the phone's traffic from 127.0.0.1, so any app on
+the phone looks like the Mac to a single server that trusts loopback. With two listeners, reversing or
+opening the device port gives the phone the check-in and nothing else. Never reverse or forward the control
+port. When the Mac has no Wi-Fi peers to serve (emulator plus USB only), bind the device listener to
+`127.0.0.1` too.
 
 ## Identity
 
@@ -16,13 +31,13 @@ One HTTP long poll. No websockets, Bonjour service or push needed. It works the 
 
 ## Endpoints
 
-| Method and path | Who may call | Purpose |
+| Method and path | Listener | Purpose |
 |---|---|---|
-| `GET /api/debug/poll?id&since&pair&<state…>` | LAN | check in and wait for commands |
-| `POST /api/debug/snapshot?id&pair` (body: PNG) | LAN | the app sends back its screen |
-| `GET /api/debug/apps` | localhost | apps seen in the last 40 s, with their state |
-| `POST /api/debug/send {target, action, value}` | localhost | queue a command for one app |
-| `GET /api/debug/snapshot?id` | localhost | latest PNG from that app |
+| `GET /api/debug/poll?id&since&pair&<state…>` | device | check in and wait for commands |
+| `POST /api/debug/snapshot?id&pair` (body: PNG) | device | the app sends back its screen |
+| `GET /api/debug/apps` | control | apps seen in the last 40 s, with their state |
+| `POST /api/debug/send {target, action, value}` | control | queue a command for one app |
+| `GET /api/debug/snapshot?id` | control | latest PNG from that app |
 
 ## Poll semantics
 
@@ -88,6 +103,17 @@ class Remote:
 Use `ThreadingHTTPServer` with `daemon_threads = True`, because each waiting poll holds a thread. Drop app
 records that haven't been seen for an hour so a stream of fake IDs can't grow memory without limit.
 
+```python
+remote = Remote()
+device = ThreadingHTTPServer((DEVICE_BIND, DEVICE_PORT), partial(DeviceHandler, remote))  # poll + snapshot only
+control = ThreadingHTTPServer(("127.0.0.1", PORT), partial(ControlHandler, remote))     # everything else
+threading.Thread(target=device.serve_forever, daemon=True).start()
+control.serve_forever()
+```
+
+The state an app reports (device name, user, screen) comes from anything that can reach the device port, so
+the page renders it with `textContent`, never `innerHTML`.
+
 ## Client sketch (Swift)
 
 ```swift
@@ -137,6 +163,14 @@ $(DEV_CONSOLE_PAIR)`, `NSAppTransportSecurity › NSAllowsLocalNetworking = YES`
 Android: put the client in `src/debug/java/…` so release never compiles it. Allow cleartext for the dev
 host only, with a `network_security_config.xml` in `src/debug/res/xml/`. React Native/Expo: guard with
 `if (__DEV__)` and keep the module in a file that release bundles tree-shake out.
+
+**Android without HTTP from the phone.** When every device is on adb (USB, wireless debugging or an
+emulator), the Mac can send each command with
+`adb -s <serial> shell am broadcast -a <appId>.DEV_CONSOLE --es action … --es value … --es pair …` to a
+debug-only receiver. It needs no cleartext and no port on the phone, and goes to one serial. The costs: the
+values show up in the Mac's process list while adb runs, the receiver must be exported, so it must check
+`pair`, and there's no state coming back unless you add the poll as well. Use it for simple one-way
+controls, and use the poll when the page needs to show live app state.
 
 ## Snapshot
 

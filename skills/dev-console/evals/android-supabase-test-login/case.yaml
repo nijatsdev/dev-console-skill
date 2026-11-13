@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: android-supabase-test-login
+expected_outcome: |
+  A Mac-side server and page that list only test accounts, mint a one-time sign-in credential with the
+  service role key, and send it to one chosen debug build, which signs in with it. The key lives in a
+  git-ignored file on the Mac and never reaches the app or the page. A reports view lists open rows.
+  The Android client is debug-only, cleartext is allowed for debug only, and the emulator and a USB or
+  Wi-Fi Pixel can all reach the Mac.
+context:
+  scaffold_script: place-files.sh

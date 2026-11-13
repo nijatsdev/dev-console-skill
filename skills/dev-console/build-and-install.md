@@ -45,7 +45,8 @@ bundle ID.
   `plistlib.loads`. Match `Entitlements.application-identifier` (after the team prefix) against the app's
   and every extension's bundle ID. Take the latest `ExpirationDate` for each bundle and the earliest across
   bundles. The state is `missing`, `expired`, `soon` (under 2 days) or `ok`. Cache it for 60 s and show it
-  above the device list.
+  above the device list. Always read the real dates. An estimate from the install time drifts as soon as Xcode refreshes a
+  profile on its own.
 
 ## Plain-language failure reasons
 
@@ -71,7 +72,7 @@ Keep this list in one function and add to it whenever a new failure shows up.
 | Build once | `./gradlew :app:assembleDebug -PdevConsoleHost=<host> -PdevConsolePair=<secret>` → `app/build/outputs/apk/debug/*.apk` |
 | Install | `adb -s <serial> install -r <apk>` (in parallel per serial) |
 | Launch | `adb -s <serial> shell am start -n <appId>/<.MainActivity>` |
-| Reach the Mac | emulator: `10.0.2.2`. USB device: `adb -s <serial> reverse tcp:PORT tcp:PORT`, then `127.0.0.1`. Wi-Fi: the Mac's `.local` name or IP |
+| Reach the Mac | the **device port** only (see the two listeners in protocol.md). Emulator: `10.0.2.2:DEVICE_PORT`. USB or wireless debugging: `adb -s <serial> reverse tcp:DEVICE_PORT tcp:DEVICE_PORT`, then `127.0.0.1`. Wi-Fi only: the Mac's `.local` name or IP. Never reverse the control port, because every app on the phone could then use it |
 
 Common failures: `INSTALL_FAILED_UPDATE_INCOMPATIBLE` means a build with a different signature is installed
 (uninstall it first and say so). `unauthorized` means the user must accept USB debugging on the phone.
